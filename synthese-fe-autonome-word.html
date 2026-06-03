@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthèse Radar FE — Outil autonome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --navy: #1F4E79;
+    --navy-dark: #163655;
+    --navy-soft: rgba(31, 78, 121, 0.18);
+    --orange: #C55A11;
+    --green-dark: #2D7A4F;
+    --green: #6BAE5C;
+    --orange-warn: #E89B3E;
+    --red: #C44545;
+    --red-bg: #fff5f5;
+    --amber-bg: #fff8e1;
+    --amber-border: #f0c04a;
+    --grey-50: #f8f8f8;
+    --grey-100: #f0f0f0;
+    --grey-200: #e5e5e5;
+    --grey-300: #d5d5d5;
+    --grey-500: #888;
+    --grey-700: #444;
+    --grey-900: #222;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    color: var(--grey-900);
+    background: #fafafa;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+  .app { max-width: 1320px; margin: 0 auto; padding: 20px; }
+
+  header {
+    text-align: center;
+    padding: 12px 0 20px;
+    border-bottom: 1px solid var(--grey-200);
+    margin-bottom: 24px;
+  }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    color: var(--navy);
+    font-size: 26px;
+  }
+  header p { color: var(--grey-500); font-size: 13px; font-style: italic; margin-top: 4px; }
+
+  /* === STEPPER === */
+  .stepper {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    font-size: 12px;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--grey-500);
+  }
+  .step-item.active { color: var(--navy); font-weight: 700; }
+  .step-item.done { color: var(--green-dark); }
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--grey-200);
+    color: var(--grey-700);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 11px;
+  }
+  .step-item.active .step-num { background: var(--navy); color: #fff; }
+  .step-item.done .step-num { background: var(--green-dark); color: #fff; }
+  .step-sep { color: var(--grey-300); }
+
+  /* === SCREENS === */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+    border: 1px solid var(--grey-200);
+  }
+
+  /* === RGPD WARNING === */
+  .rgpd-warning {
+    background: var(--amber-bg);
+    border-left: 4px solid var(--amber-border);
+    padding: 16px 20px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  .rgpd-warning h3 {
+    color: #8a6500;
+    font-size: 14px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rgpd-warning p {
+    font-size: 13px;
+    color: var(--grey-700);
+    margin: 6px 0;
+  }
+  .rgpd-warning ul {
+    padding-left: 22px;
+    font-size: 13px;
+    color: var(--grey-700);
+    margin: 6px 0;
+  }
+  .rgpd-warning li { margin: 3px 0; }
+
+  /* === UPLOAD === */
+  .upload-zone {
+    border: 2px dashed var(--grey-300);
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    background: var(--grey-50);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .upload-zone:hover, .upload-zone.dragging {
+    border-color: var(--navy);
+    background: #fff;
+  }
+  .upload-zone .icon { font-size: 38px; color: var(--navy); margin-bottom: 10px; }
+  .upload-zone p { color: var(--grey-700); font-size: 14px; margin-bottom: 12px; }
+  .upload-zone .formats { font-size: 11px; color: var(--grey-500); margin-top: 6px; }
+  #file-input { display: none; }
+
+  .btn {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--navy-dark); }
+  .btn:disabled { background: var(--grey-300); cursor: not-allowed; }
+  .btn-outline { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
+  .btn-outline:hover { background: var(--navy); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--grey-700); border: 1px solid var(--grey-300); }
+  .btn-ghost:hover { background: var(--grey-100); }
+  .btn-danger { background: var(--red); }
+  .btn-danger:hover { background: #a93636; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  .demo-row {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--grey-200);
+    text-align: center;
+  }
+  .demo-row span {
+    display: block;
+    font-size: 12px;
+    color: var(--grey-500);
+    margin-bottom: 8px;
+  }
+
+  /* === ANONYMIZATION === */
+  .anon-stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .anon-stat {
+    background: var(--grey-100);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--grey-700);
+  }
+  .anon-stat strong { color: var(--navy); }
+
+  .anon-editor {
+    width: 100%;
+    min-height: 380px;
+    max-height: 540px;
+    padding: 14px;
+    border: 1px solid var(--grey-300);
+    border-radius: 4px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    resize: vertical;
+    background: #fff;
+  }
+  .anon-editor:focus { outline: none; border-color: var(--navy); }
+
+  .anon-tools {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+
+  .anon-confirm {
+    background: var(--red-bg);
+    border: 1px solid #f5b6b6;
+    border-radius: 4px;
+    padding: 14px;
+    margin-top: 16px;
+  }
+  .anon-confirm label {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--grey-900);
+  }
+  .anon-confirm input[type=checkbox] { margin-top: 3px; flex-shrink: 0; }
+
+  /* === EDITOR === */
+  .editor-grid {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+  }
+  .editor-panel {
+    background: #fff;
+    border-radius: 8px;
+    padding: 18px;
+    border: 1px solid var(--grey-200);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .preview-panel { min-width: 0; }
+  .editor-panel h3 {
+    color: var(--navy);
+    font-size: 13px;
+    margin: 14px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+  .editor-panel h3:first-child { margin-top: 0; }
+  .field { margin-bottom: 10px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--grey-700);
+    margin-bottom: 3px;
+    font-weight: 500;
+  }
+  .field input, .field textarea, .field select {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--grey-300);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none;
+    border-color: var(--navy);
+  }
+
+  .axis-item {
+    background: var(--grey-50);
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--grey-300);
+  }
+  .axis-item.score-4 { border-left-color: var(--green-dark); }
+  .axis-item.score-3 { border-left-color: var(--green); }
+  .axis-item.score-2 { border-left-color: var(--orange-warn); }
+  .axis-item.score-1 { border-left-color: var(--red); }
+  .axis-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .axis-head input {
+    flex: 1;
+    font-size: 12px;
+    padding: 5px 7px;
+    border: 1px solid var(--grey-300);
+    border-radius: 3px;
+  }
+  .axis-remove {
+    background: transparent;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+  }
+  .score-buttons { display: flex; gap: 4px; margin-bottom: 6px; }
+  .score-btn {
+    flex: 1;
+    padding: 5px;
+    border: 1px solid var(--grey-300);
+    background: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--grey-700);
+  }
+  .score-btn:hover { background: var(--grey-100); }
+  .score-btn.active.s4 { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+  .score-btn.active.s3 { background: var(--green); color: #fff; border-color: var(--green); }
+  .score-btn.active.s2 { background: var(--orange-warn); color: #fff; border-color: var(--orange-warn); }
+  .score-btn.active.s1 { background: var(--red); color: #fff; border-color: var(--red); }
+  .axis-just {
+    width: 100%;
+    padding: 5px 7px;
+    border: 1px solid var(--grey-300);
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 40px;
+  }
+
+  .add-axis-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1px dashed var(--grey-300);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--grey-700);
+    margin-top: 6px;
+  }
+  .add-axis-btn:hover { border-color: var(--navy); color: var(--navy); }
+
+  /* === PREVIEW === */
+  #result-title {
+    font-family: 'DM Serif Display', serif;
+    color: var(--navy);
+    font-size: 24px;
+    text-align: center;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--navy);
+    margin-bottom: 6px;
+  }
+  #result-subtitle {
+    text-align: center;
+    font-style: italic;
+    color: var(--grey-500);
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+  .preview-card {
+    background: #fff;
+    padding: 24px;
+    border-radius: 8px;
+    border: 1px solid var(--grey-200);
+  }
+  .chart-wrap { position: relative; height: 420px; margin-bottom: 16px; }
+  .legends {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 14px 0;
+    border-top: 1px solid var(--grey-200);
+    border-bottom: 1px solid var(--grey-200);
+  }
+  .legend-col h4 { font-size: 12px; color: var(--navy); margin-bottom: 8px; font-weight: 700; }
+  .legend-row { display: flex; align-items: center; gap: 9px; font-size: 12px; padding: 2px 0; }
+  .legend-row .count { margin-left: auto; font-weight: 700; color: var(--grey-700); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .chart-footer { text-align: center; font-size: 11px; color: var(--grey-500); font-style: italic; margin-top: 12px; }
+
+  .info-section {
+    background: var(--grey-50);
+    padding: 18px 20px;
+    border-radius: 6px;
+    border-left: 3px solid var(--navy);
+    font-size: 13px;
+    line-height: 1.55;
+    margin-top: 20px;
+  }
+  .info-section h3 { color: var(--navy); font-size: 14px; margin-bottom: 10px; font-weight: 700; }
+  .info-section h3:not(:first-child) { margin-top: 16px; }
+  .info-section p { margin-bottom: 10px; }
+  .label-fort { color: var(--navy); font-weight: 700; }
+  .label-renforcer { color: var(--orange); font-weight: 700; }
+  .label-critique { color: var(--red); font-weight: 700; }
+  .label-message { color: var(--navy); font-weight: 700; }
+  .method { font-style: italic; font-size: 12px; color: var(--grey-700); }
+
+  .actions-bar {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 16px 0;
+    margin-top: 8px;
+  }
+
+  .nav-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--grey-200);
+  }
+
+  .small-note {
+    font-size: 11px;
+    color: var(--grey-500);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  @media (max-width: 900px) {
+    .editor-grid { grid-template-columns: 1fr; }
+    .editor-panel { max-height: none; }
+    .chart-wrap { height: 360px; }
+    .legends { grid-template-columns: 1fr; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Synthèse Radar — Fiche d'Entreprise</h1>
+    <p>Outil autonome · Anonymisation obligatoire · Export Word</p>
+  </header>
+
+  <!-- STEPPER -->
+  <div class="stepper">
+    <div class="step-item active" id="step-1"><span class="step-num">1</span> Upload</div>
+    <span class="step-sep">→</span>
+    <div class="step-item" id="step-2"><span class="step-num">2</span> Anonymisation</div>
+    <span class="step-sep">→</span>
+    <div class="step-item" id="step-3"><span class="step-num">3</span> Synthèse & Export</div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- ÉCRAN 1 : UPLOAD                                -->
+  <!-- ============================================== -->
+  <div class="screen active" id="screen-upload">
+    <div class="rgpd-warning">
+      <h3>⚠️ Important — Confidentialité & RGPD</h3>
+      <p>La fiche d'entreprise contient des données identifiantes (nom de l'entreprise, dirigeant, coordonnées). <strong>Avant tout traitement</strong>, ces données seront masquées dans une étape dédiée.</p>
+      <ul>
+        <li>Les données restent dans votre navigateur — aucun envoi automatique vers un serveur</li>
+        <li>Vous validerez manuellement l'anonymisation avant de passer à l'étape suivante</li>
+        <li>Le document Word final est généré localement, sans transmission externe</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="upload-zone" id="dropzone">
+        <div class="icon">📄</div>
+        <p><strong>Glissez votre fiche d'entreprise ici</strong><br>ou cliquez pour parcourir</p>
+        <button class="btn" id="browse-btn">Choisir un fichier</button>
+        <p class="formats">Formats acceptés : .docx · .pdf · .txt</p>
+        <input type="file" id="file-input" accept=".docx,.pdf,.txt">
+      </div>
+
+      <div class="demo-row">
+        <span>Ou découvrir l'outil avec un exemple anonymisé</span>
+        <button class="btn btn-ghost btn-sm" id="demo-btn">▶ Lancer une démo (FE Transport)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- ÉCRAN 2 : ANONYMISATION                         -->
+  <!-- ============================================== -->
+  <div class="screen" id="screen-anon">
+    <div class="rgpd-warning">
+      <h3>🔒 Étape obligatoire — Anonymisation</h3>
+      <p>Le texte extrait ci-dessous a été <strong>pré-anonymisé automatiquement</strong> par détection des motifs courants (noms, téléphones, emails, SIRET, adresses postales). <strong>Vérifiez et complétez manuellement</strong> avant de continuer — notamment la première partie de la FE (entête, coordonnées, dirigeants, médecin du travail).</p>
+    </div>
+
+    <div class="card">
+      <div class="anon-stats" id="anon-stats"></div>
+
+      <div class="anon-tools">
+        <button class="btn btn-ghost btn-sm" id="anon-selection-btn">🔒 Masquer la sélection</button>
+        <button class="btn btn-ghost btn-sm" id="anon-reset-btn">↻ Réappliquer auto-anonymisation</button>
+        <button class="btn btn-ghost btn-sm" id="anon-clear-header-btn">✂ Couper l'entête (avant « Facteurs de risques »)</button>
+      </div>
+
+      <textarea id="anon-text" class="anon-editor" placeholder="Texte de la fiche d'entreprise après anonymisation…"></textarea>
+      <p class="small-note">Astuce : sélectionnez n'importe quel mot puis cliquez sur « Masquer la sélection » pour le remplacer par [ANONYMISÉ].</p>
+
+      <div class="anon-confirm">
+        <label>
+          <input type="checkbox" id="anon-confirm-cb">
+          <span><strong>Je certifie</strong> avoir vérifié le texte ci-dessus et confirmé que <strong>toutes les données identifiantes</strong> (noms de personnes, nom de l'entreprise si requis, coordonnées, SIRET, adresses, emails, téléphones) ont été masquées avant le passage à l'étape suivante.</span>
+        </label>
+      </div>
+
+      <div class="nav-bar">
+        <button class="btn btn-ghost" id="anon-back-btn">← Retour</button>
+        <button class="btn" id="anon-next-btn" disabled>Continuer →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- ÉCRAN 3 : ÉDITEUR + PRÉVISUALISATION            -->
+  <!-- ============================================== -->
+  <div class="screen" id="screen-editor">
+    <div class="editor-grid">
+
+      <!-- PANNEAU GAUCHE : ÉDITION -->
+      <div class="editor-panel">
+        <h3>Identité (anonymisée)</h3>
+        <div class="field">
+          <label>Descriptif d'activité</label>
+          <input type="text" id="f-entreprise" placeholder="ex : Transport sous-traitance livraison">
+        </div>
+        <div class="field">
+          <label>GHE principal</label>
+          <input type="text" id="f-ghe" placeholder="ex : Chauffeurs livreurs">
+        </div>
+        <div class="field">
+          <label>Effectif</label>
+          <input type="number" id="f-effectif" min="0" step="1">
+        </div>
+
+        <h3>Axes du radar</h3>
+        <div id="axes-list"></div>
+        <button class="add-axis-btn" id="add-axis-btn">+ Ajouter un axe</button>
+
+        <h3>Lecture rapide</h3>
+        <div class="field">
+          <label style="color: var(--navy);">Point fort</label>
+          <textarea id="f-lr-fort" placeholder="ex : l'ambiance thermique (4/8) est bien maîtrisée…"></textarea>
+        </div>
+        <div class="field">
+          <label style="color: var(--orange);">Zones à renforcer</label>
+          <textarea id="f-lr-renforcer"></textarea>
+        </div>
+        <div class="field">
+          <label style="color: var(--red);">Point critique</label>
+          <textarea id="f-lr-critique"></textarea>
+        </div>
+        <div class="field">
+          <label style="color: var(--navy);">Message à l'employeur</label>
+          <textarea id="f-lr-message"></textarea>
+        </div>
+
+        <div class="nav-bar">
+          <button class="btn btn-ghost btn-sm" id="editor-back-btn">← Retour</button>
+          <button class="btn btn-ghost btn-sm" id="editor-restart-btn">↻ Nouvelle analyse</button>
+        </div>
+      </div>
+
+      <!-- PANNEAU DROIT : PRÉVISUALISATION -->
+      <div class="preview-panel">
+        <h2 id="result-title">Synthèse des risques</h2>
+        <p id="result-subtitle">Niveau de maîtrise actuel vs niveau cible</p>
+
+        <div class="preview-card">
+          <div class="chart-wrap"><canvas id="radar"></canvas></div>
+          <div class="legends">
+            <div class="legend-col">
+              <h4>Échelle de maîtrise</h4>
+              <div class="legend-row"><span class="dot" style="background:#2D7A4F"></span> 4 — Maîtrisé</div>
+              <div class="legend-row"><span class="dot" style="background:#6BAE5C"></span> 3 — Globalement en place</div>
+              <div class="legend-row"><span class="dot" style="background:#E89B3E"></span> 2 — Partiel / à renforcer</div>
+              <div class="legend-row"><span class="dot" style="background:#C44545"></span> 1 — À traiter</div>
+            </div>
+            <div class="legend-col">
+              <h4 id="repartition-title">Répartition</h4>
+              <div class="legend-row"><span class="dot" style="background:#2D7A4F"></span> Maîtrisé <span class="count" id="count-4">0</span></div>
+              <div class="legend-row"><span class="dot" style="background:#6BAE5C"></span> En place <span class="count" id="count-3">0</span></div>
+              <div class="legend-row"><span class="dot" style="background:#E89B3E"></span> À renforcer <span class="count" id="count-2">0</span></div>
+              <div class="legend-row"><span class="dot" style="background:#C44545"></span> À traiter <span class="count" id="count-1">0</span></div>
+            </div>
+          </div>
+          <p class="chart-footer" id="chart-footer">SPSTI 23/87 — Source : Fiche d'entreprise</p>
+
+          <div class="info-section">
+            <h3>Lecture rapide</h3>
+            <p><span class="label-fort">Point fort :</span> <span id="lf-fort"></span></p>
+            <p><span class="label-renforcer">Zones à renforcer :</span> <span id="lf-renforcer"></span></p>
+            <p><span class="label-critique">Point critique :</span> <span id="lf-critique"></span></p>
+            <p><span class="label-message">Message à l'employeur :</span> <span id="lf-message"></span></p>
+            <h3>Méthodologie</h3>
+            <p class="method">Chaque axe correspond à une famille de risque identifiée lors de la visite d'entreprise. La note (0 à 4) intègre la qualité et l'exhaustivité des moyens de prévention en place après déduplication des moyens observés / conseillés. La cible (4) représente une situation de maîtrise complète au regard du Code du travail et des recommandations INRS.</p>
+          </div>
+        </div>
+
+        <div class="actions-bar">
+          <button class="btn" id="export-word-btn">📄 Télécharger Word (.doc)</button>
+          <button class="btn btn-outline" id="export-png-btn">🖼️ Télécharger PNG</button>
+          <button class="btn btn-ghost" id="export-json-btn">📋 Copier JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ==========================================================
+// CONFIG
+// ==========================================================
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const slugify = (s) => String(s || 'fe').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+
+// État global
+let state = {
+  entreprise: '',
+  ghe_principal: '',
+  effectif: 0,
+  axes: [],
+  lecture_rapide: { point_fort: '', zones_a_renforcer: '', point_critique: '', message_employeur: '' }
+};
+let originalText = '';
+let chartInstance = null;
+
+// ==========================================================
+// NAVIGATION ENTRE ÉCRANS
+// ==========================================================
+function showScreen(name) {
+  ['upload', 'anon', 'editor'].forEach(s => {
+    $('screen-' + s).classList.toggle('active', s === name);
+  });
+  const stepMap = { upload: 1, anon: 2, editor: 3 };
+  [1, 2, 3].forEach(i => {
+    const el = $('step-' + i);
+    el.classList.remove('active', 'done');
+    if (i < stepMap[name]) el.classList.add('done');
+    else if (i === stepMap[name]) el.classList.add('active');
+  });
+  window.scrollTo(0, 0);
+}
+
+// ==========================================================
+// SCREEN 1 — UPLOAD
+// ==========================================================
+const dropzone = $('dropzone');
+const fileInput = $('file-input');
+
+$('browse-btn').addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragging');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+async function extractText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'docx') {
+    const buf = await file.arrayBuffer();
+    const r = await mammoth.extractRawText({ arrayBuffer: buf });
+    return r.value;
+  }
+  if (ext === 'pdf') {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const c = await page.getTextContent();
+      text += c.items.map(it => it.str).join(' ') + '\n';
+    }
+    return text;
+  }
+  if (ext === 'txt') return await file.text();
+  throw new Error('Format non supporté : ' + ext);
+}
+
+async function handleFile(file) {
+  try {
+    const text = await extractText(file);
+    if (text.length < 200) throw new Error('Le fichier semble vide ou illisible');
+    originalText = text;
+    initAnonymization(text);
+    showScreen('anon');
+  } catch (err) {
+    alert('Erreur d\'extraction : ' + err.message);
+  }
+}
+
+// ==========================================================
+// SCREEN 2 — ANONYMISATION
+// ==========================================================
+const PII_PATTERNS = [
+  { name: 'Email',         regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, replacement: '[EMAIL]' },
+  { name: 'Téléphone',     regex: /(?:(?:\+|00)33[\s.\-]?(?:\(0\)[\s.\-]?)?|0)[1-9](?:[\s.\-]?\d{2}){4}/g, replacement: '[TÉL]' },
+  { name: 'SIRET',         regex: /\b\d{3}[\s.\-]?\d{3}[\s.\-]?\d{3}[\s.\-]?\d{5}\b/g, replacement: '[SIRET]' },
+  { name: 'CP + Ville',    regex: /\b\d{5}\s+[A-ZÀ-Ÿ][A-ZÀ-Ÿ\s\-]{2,}(?=\b|\s|$)/g, replacement: '[CP VILLE]' },
+  { name: 'Nom + civilité', regex: /\b(M\.|Mme|Mlle|Mr|Madame|Monsieur|Mademoiselle|Dr\.?|Docteur)\s+[A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+){0,2}/g, replacement: '$1 [NOM]' },
+  { name: 'Label nominal',  regex: /\b(Médecin du travail|Chef d['']entreprise|Gérante? rencontrée pour la FE|Gérante?|Rédacteur|Référent sécurité|Référent Handicap|Personne rencontrée|Contact|Adresse)\s*[:=]\s*([^\n\r]{2,80})/gi, replacement: '$1 : [ANONYMISÉ]' }
+];
+
+function autoAnonymize(text) {
+  const counts = {};
+  let result = text;
+  for (const pattern of PII_PATTERNS) {
+    let matches = 0;
+    result = result.replace(pattern.regex, (...args) => {
+      matches++;
+      // Gérer les remplacements avec groupe de capture
+      if (typeof pattern.replacement === 'string' && pattern.replacement.includes('$1')) {
+        return pattern.replacement.replace(/\$(\d)/g, (_, n) => args[parseInt(n)] || '');
+      }
+      return pattern.replacement;
+    });
+    if (matches > 0) counts[pattern.name] = matches;
+  }
+  return { text: result, counts };
+}
+
+function initAnonymization(text) {
+  const { text: anonymized, counts } = autoAnonymize(text);
+  $('anon-text').value = anonymized;
+  renderAnonStats(counts);
+  $('anon-confirm-cb').checked = false;
+  $('anon-next-btn').disabled = true;
+}
+
+function renderAnonStats(counts) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (total === 0) {
+    $('anon-stats').innerHTML = '<div class="anon-stat">⚠️ Aucune donnée auto-détectée — <strong>vérifiez attentivement</strong></div>';
+    return;
+  }
+  const items = Object.entries(counts).map(([k, v]) => `<div class="anon-stat"><strong>${v}</strong> ${k}${v > 1 ? 's' : ''} masqué${v > 1 ? 's' : ''}</div>`).join('');
+  $('anon-stats').innerHTML = `<div class="anon-stat" style="background: #e8f4ed; color: var(--green-dark);"><strong>${total} élément${total > 1 ? 's' : ''}</strong> auto-anonymisé${total > 1 ? 's' : ''} :</div>` + items;
+}
+
+$('anon-confirm-cb').addEventListener('change', (e) => {
+  $('anon-next-btn').disabled = !e.target.checked;
+});
+
+$('anon-back-btn').addEventListener('click', () => showScreen('upload'));
+
+$('anon-reset-btn').addEventListener('click', () => {
+  if (confirm('Réappliquer l\'auto-anonymisation sur le texte original ? Vos modifications manuelles seront perdues.')) {
+    initAnonymization(originalText);
+  }
+});
+
+$('anon-selection-btn').addEventListener('click', () => {
+  const ta = $('anon-text');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  if (start === end) {
+    alert('Sélectionnez d\'abord le texte à masquer dans la zone d\'édition.');
+    return;
+  }
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + '[ANONYMISÉ]' + after;
+  ta.focus();
+  ta.setSelectionRange(start, start + '[ANONYMISÉ]'.length);
+});
+
+$('anon-clear-header-btn').addEventListener('click', () => {
+  const ta = $('anon-text');
+  const idx = ta.value.search(/Facteurs de risques|Appréciation des risques|Risques et contraintes/i);
+  if (idx === -1) {
+    alert('Section « Facteurs de risques » introuvable. Vérifiez le contenu du texte.');
+    return;
+  }
+  if (confirm('Couper toute la partie avant la section « Facteurs de risques » ? Cette action supprime l\'entête (coordonnées, dirigeants, etc.).')) {
+    ta.value = '[Entête anonymisée — début à partir des facteurs de risques]\n\n' + ta.value.slice(idx);
+  }
+});
+
+$('anon-next-btn').addEventListener('click', () => {
+  // Pré-remplir l'éditeur avec un squelette
+  prefillEditor();
+  showScreen('editor');
+  updateAll();
+});
+
+function prefillEditor() {
+  // Tentative d'extraction du GHE depuis le texte anonymisé
+  const text = $('anon-text').value;
+  const gheMatch = text.match(/(?:Chauffeurs[\s\w]*|Conducteurs[\s\w]*|GHE[^:]*:\s*([^\n]+))/i);
+  const effMatch = text.match(/Total\s*:\s*(\d+)/i);
+
+  if (!state.entreprise) state.entreprise = '[Entreprise anonymisée]';
+  if (!state.ghe_principal && gheMatch) state.ghe_principal = gheMatch[1] || gheMatch[0].slice(0, 40);
+  if (!state.effectif && effMatch) state.effectif = parseInt(effMatch[1]);
+  if (state.axes.length === 0) {
+    state.axes = [
+      { nom: 'Risque routier', score: 3, justification: '' },
+      { nom: 'Manutention manuelle', score: 2, justification: '' },
+      { nom: 'Ambiance thermique', score: 3, justification: '' },
+      { nom: 'RPS / contact public', score: 2, justification: '' }
+    ];
+  }
+  syncFormFromState();
+  renderAxes();
+}
+
+// ==========================================================
+// SCREEN 3 — ÉDITEUR + PRÉVISUALISATION
+// ==========================================================
+const REFERENTIAL = [
+  'Risque routier','Addictions / sécurité','Manutention manuelle','Travail répétitif / TMS',
+  'Postures contraignantes','Vibrations mécaniques','Chute de plain-pied','Chute de hauteur',
+  'Chute d\'objet','Coactivité','Risque machine','Risque électrique','Risque chimique',
+  'Risque biologique','Bruit','Ambiance thermique','Éclairage / rayonnements',
+  'Incendie / explosion','RPS / contact public','Travail isolé','Travail sur écran','Horaires atypiques'
+];
+
+function renderAxes() {
+  const container = $('axes-list');
+  container.innerHTML = '';
+  state.axes.forEach((axis, idx) => {
+    const div = document.createElement('div');
+    div.className = `axis-item score-${axis.score}`;
+    div.innerHTML = `
+      <div class="axis-head">
+        <input type="text" value="${escapeHtml(axis.nom)}" data-idx="${idx}" data-field="nom" placeholder="Famille de risque" list="referential">
+        <button class="axis-remove" data-idx="${idx}" title="Supprimer">×</button>
+      </div>
+      <div class="score-buttons">
+        ${[1,2,3,4].map(s => `<button class="score-btn s${s} ${axis.score===s?'active':''}" data-idx="${idx}" data-score="${s}">${s}</button>`).join('')}
+      </div>
+      <textarea class="axis-just" data-idx="${idx}" data-field="justification" placeholder="Justification courte (15-25 mots)">${escapeHtml(axis.justification)}</textarea>
+    `;
+    container.appendChild(div);
+  });
+  // Datalist pour autocomplete
+  if (!$('referential')) {
+    const dl = document.createElement('datalist');
+    dl.id = 'referential';
+    dl.innerHTML = REFERENTIAL.map(r => `<option value="${escapeHtml(r)}">`).join('');
+    document.body.appendChild(dl);
+  }
+  bindAxisEvents();
+}
+
+function bindAxisEvents() {
+  document.querySelectorAll('.axis-item .score-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      const score = parseInt(btn.dataset.score);
+      state.axes[idx].score = score;
+      renderAxes();
+      updateAll();
+    });
+  });
+  document.querySelectorAll('.axis-item input[data-field], .axis-item textarea[data-field]').forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = parseInt(el.dataset.idx);
+      state.axes[idx][el.dataset.field] = el.value;
+      updateAll();
+    });
+  });
+  document.querySelectorAll('.axis-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      state.axes.splice(idx, 1);
+      renderAxes();
+      updateAll();
+    });
+  });
+}
+
+$('add-axis-btn').addEventListener('click', () => {
+  if (state.axes.length >= 12) {
+    alert('Maximum recommandé : 12 axes. Au-delà, le radar devient illisible.');
+    return;
+  }
+  state.axes.push({ nom: '', score: 2, justification: '' });
+  renderAxes();
+  updateAll();
+});
+
+// Bind identité + lecture rapide
+['f-entreprise', 'f-ghe', 'f-effectif'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    if (id === 'f-entreprise') state.entreprise = $(id).value;
+    if (id === 'f-ghe') state.ghe_principal = $(id).value;
+    if (id === 'f-effectif') state.effectif = parseInt($(id).value) || 0;
+    updateAll();
+  });
+});
+['f-lr-fort', 'f-lr-renforcer', 'f-lr-critique', 'f-lr-message'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    const key = { 'f-lr-fort': 'point_fort', 'f-lr-renforcer': 'zones_a_renforcer', 'f-lr-critique': 'point_critique', 'f-lr-message': 'message_employeur' }[id];
+    state.lecture_rapide[key] = $(id).value;
+    updateAll();
+  });
+});
+
+function syncFormFromState() {
+  $('f-entreprise').value = state.entreprise || '';
+  $('f-ghe').value = state.ghe_principal || '';
+  $('f-effectif').value = state.effectif || 0;
+  $('f-lr-fort').value = state.lecture_rapide.point_fort || '';
+  $('f-lr-renforcer').value = state.lecture_rapide.zones_a_renforcer || '';
+  $('f-lr-critique').value = state.lecture_rapide.point_critique || '';
+  $('f-lr-message').value = state.lecture_rapide.message_employeur || '';
+}
+
+function updateAll() {
+  const ent = state.entreprise || '[Entreprise]';
+  $('result-title').textContent = `Synthèse des risques — ${ent}`;
+  $('chart-footer').textContent = `SPSTI 23/87 — Source : Fiche d'entreprise — ${ent}`;
+
+  const counts = { 4: 0, 3: 0, 2: 0, 1: 0 };
+  state.axes.forEach(a => { if (counts[a.score] !== undefined) counts[a.score]++; });
+  const total = state.axes.length;
+  $('repartition-title').textContent = `Répartition (${total} risque${total > 1 ? 's' : ''})`;
+  $('count-4').textContent = `${counts[4]}/${total}`;
+  $('count-3').textContent = `${counts[3]}/${total}`;
+  $('count-2').textContent = `${counts[2]}/${total}`;
+  $('count-1').textContent = `${counts[1]}/${total}`;
+
+  $('lf-fort').textContent = state.lecture_rapide.point_fort || '—';
+  $('lf-renforcer').textContent = state.lecture_rapide.zones_a_renforcer || '—';
+  $('lf-critique').textContent = state.lecture_rapide.point_critique || '—';
+  $('lf-message').textContent = state.lecture_rapide.message_employeur || '—';
+
+  drawRadar();
+}
+
+function drawRadar() {
+  if (chartInstance) chartInstance.destroy();
+  if (state.axes.length < 3) return; // Pas assez d'axes pour un radar
+
+  const labels = state.axes.map(a => a.nom || '—');
+  const scores = state.axes.map(a => a.score);
+  const colorByScore = (s) => s === 4 ? '#2D7A4F' : s === 3 ? '#6BAE5C' : s === 2 ? '#E89B3E' : s === 1 ? '#C44545' : '#ccc';
+  const pointColors = scores.map(colorByScore);
+  const tooltipLabels = ['Non évalué', 'À traiter', 'À renforcer', 'En place', 'Maîtrisé'];
+
+  chartInstance = new Chart($('radar').getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Maîtrise actuelle',
+          data: scores,
+          backgroundColor: 'rgba(31, 78, 121, 0.18)',
+          borderColor: '#1F4E79',
+          borderWidth: 2.5,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          tension: 0
+        },
+        {
+          label: 'Niveau cible (4)',
+          data: Array(labels.length).fill(4),
+          borderColor: '#999',
+          borderDash: [6, 4],
+          borderWidth: 1.4,
+          backgroundColor: 'transparent',
+          pointRadius: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          min: 0, max: 4,
+          ticks: { stepSize: 1, font: { size: 11, family: 'DM Sans' }, color: '#888', backdropColor: 'transparent' },
+          pointLabels: { font: { size: 11, family: 'DM Sans', weight: '500' }, color: '#333' },
+          grid: { color: '#d8d8d8' },
+          angleLines: { color: '#d8d8d8' }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top', align: 'end',
+          labels: { font: { size: 12, family: 'DM Sans' }, usePointStyle: true, pointStyle: 'line', padding: 14, boxWidth: 24 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(31, 78, 121, 0.95)',
+          callbacks: {
+            label: (item) => {
+              if (item.datasetIndex === 1) return 'Cible : 4';
+              const lvl = item.parsed.r;
+              return `${lvl}/4 — ${tooltipLabels[lvl] || ''}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+$('editor-back-btn').addEventListener('click', () => showScreen('anon'));
+$('editor-restart-btn').addEventListener('click', () => {
+  if (!confirm('Recommencer une nouvelle analyse ? Toutes les données saisies seront perdues.')) return;
+  state = { entreprise: '', ghe_principal: '', effectif: 0, axes: [], lecture_rapide: { point_fort: '', zones_a_renforcer: '', point_critique: '', message_employeur: '' } };
+  originalText = '';
+  fileInput.value = '';
+  showScreen('upload');
+});
+
+// ==========================================================
+// EXPORTS
+// ==========================================================
+$('export-png-btn').addEventListener('click', () => {
+  if (!chartInstance) { alert('Aucun graphique à exporter.'); return; }
+  const url = chartInstance.toBase64Image('image/png', 2.0);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `synthese-radar-${slugify(state.entreprise)}.png`;
+  a.click();
+});
+
+$('export-json-btn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(state, null, 2));
+    const btn = $('export-json-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copié !';
+    setTimeout(() => btn.textContent = orig, 1500);
+  } catch {
+    alert('Impossible de copier dans le presse-papier.');
+  }
+});
+
+// === EXPORT WORD ===
+$('export-word-btn').addEventListener('click', () => {
+  if (!chartInstance) { alert('Aucun graphique à exporter.'); return; }
+  const chartImg = chartInstance.toBase64Image('image/png', 2.0);
+  const counts = { 4: 0, 3: 0, 2: 0, 1: 0 };
+  state.axes.forEach(a => { if (counts[a.score] !== undefined) counts[a.score]++; });
+  const total = state.axes.length;
+  const scoreColor = (s) => s === 4 ? '#2D7A4F' : s === 3 ? '#6BAE5C' : s === 2 ? '#E89B3E' : s === 1 ? '#C44545' : '#888';
+  const scoreLabel = (s) => s === 4 ? 'Maîtrisé' : s === 3 ? 'En place' : s === 2 ? 'À renforcer' : s === 1 ? 'À traiter' : '—';
+  const ent = state.entreprise || '[Entreprise]';
+
+  const html = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>Synthèse FE — ${escapeHtml(ent)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>
+  @page Section1 { size: 21cm 29.7cm; margin: 2cm; mso-page-orientation: portrait; }
+  div.Section1 { page: Section1; }
+  body { font-family: Calibri, sans-serif; color: #222; font-size: 11pt; line-height: 1.4; }
+  h1.title { color: #1F4E79; font-family: Cambria, serif; font-size: 20pt; text-align: center; border-bottom: 1.5pt solid #1F4E79; padding-bottom: 6pt; margin-bottom: 4pt; }
+  p.subtitle { text-align: center; font-style: italic; color: #888; font-size: 10pt; margin-bottom: 18pt; }
+  h2.section { color: #1F4E79; font-family: Cambria, serif; font-size: 13pt; border-left: 3pt solid #1F4E79; padding-left: 8pt; margin: 20pt 0 10pt; }
+  table.legend { width: 100%; margin: 12pt 0 16pt; border-collapse: collapse; }
+  table.legend td { vertical-align: top; padding: 4pt 8pt; font-size: 10pt; }
+  table.legend td.col-title { color: #1F4E79; font-weight: bold; font-size: 11pt; padding-bottom: 6pt; }
+  table.detail { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 10pt; }
+  table.detail th { background: #1F4E79; color: white; padding: 6pt 8pt; text-align: left; font-weight: bold; }
+  table.detail th.center { text-align: center; }
+  table.detail td { padding: 6pt 8pt; border-bottom: 0.5pt solid #ddd; vertical-align: top; }
+  table.detail td.center { text-align: center; font-weight: bold; }
+  p.lr { margin: 8pt 0; font-size: 11pt; }
+  p.method { font-style: italic; font-size: 9.5pt; color: #555; line-height: 1.5; }
+  p.footer { text-align: center; font-size: 9pt; color: #888; font-style: italic; margin-top: 24pt; padding-top: 8pt; border-top: 0.5pt solid #ddd; }
+  .dot { display: inline-block; width: 8pt; height: 8pt; border-radius: 50%; margin-right: 4pt; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="Section1">
+
+<h1 class="title">Synthèse des risques — ${escapeHtml(ent)}</h1>
+<p class="subtitle">Niveau de maîtrise actuel vs niveau cible</p>
+
+<p style="text-align: center; margin: 16pt 0;">
+  <img src="${chartImg}" style="width: 15cm; max-width: 100%; height: auto;" alt="Diagramme radar de synthèse">
+</p>
+
+<table class="legend">
+  <tr>
+    <td class="col-title" style="width: 50%;">Échelle de maîtrise</td>
+    <td class="col-title">Répartition (${total} risque${total>1?'s':''})</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="dot" style="background: #2D7A4F;"></span> 4 — Maîtrisé<br>
+      <span class="dot" style="background: #6BAE5C;"></span> 3 — Globalement en place<br>
+      <span class="dot" style="background: #E89B3E;"></span> 2 — Partiel / à renforcer<br>
+      <span class="dot" style="background: #C44545;"></span> 1 — À traiter
+    </td>
+    <td>
+      <span class="dot" style="background: #2D7A4F;"></span> Maîtrisé — <strong>${counts[4]}/${total}</strong><br>
+      <span class="dot" style="background: #6BAE5C;"></span> En place — <strong>${counts[3]}/${total}</strong><br>
+      <span class="dot" style="background: #E89B3E;"></span> À renforcer — <strong>${counts[2]}/${total}</strong><br>
+      <span class="dot" style="background: #C44545;"></span> À traiter — <strong>${counts[1]}/${total}</strong>
+    </td>
+  </tr>
+</table>
+
+<h2 class="section">Lecture rapide</h2>
+<p class="lr"><strong style="color: #1F4E79;">Point fort :</strong> ${escapeHtml(state.lecture_rapide.point_fort)}</p>
+<p class="lr"><strong style="color: #C55A11;">Zones à renforcer :</strong> ${escapeHtml(state.lecture_rapide.zones_a_renforcer)}</p>
+<p class="lr"><strong style="color: #C44545;">Point critique :</strong> ${escapeHtml(state.lecture_rapide.point_critique)}</p>
+<p class="lr"><strong style="color: #1F4E79;">Message à l'employeur :</strong> ${escapeHtml(state.lecture_rapide.message_employeur)}</p>
+
+<h2 class="section">Détail des axes évalués</h2>
+<table class="detail">
+  <thead>
+    <tr>
+      <th style="width: 28%;">Famille de risque</th>
+      <th class="center" style="width: 12%;">Note</th>
+      <th class="center" style="width: 14%;">Niveau</th>
+      <th>Justification</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${state.axes.map(a => `
+      <tr>
+        <td><strong>${escapeHtml(a.nom)}</strong></td>
+        <td class="center" style="color: ${scoreColor(a.score)};">${a.score}/4</td>
+        <td class="center" style="color: ${scoreColor(a.score)};">${scoreLabel(a.score)}</td>
+        <td>${escapeHtml(a.justification) || '—'}</td>
+      </tr>`).join('')}
+  </tbody>
+</table>
+
+<h2 class="section">Méthodologie</h2>
+<p class="method">Chaque axe correspond à une famille de risque identifiée lors de la visite d'entreprise. La note de maîtrise (0 à 4) intègre la qualité et l'exhaustivité des moyens de prévention en place après déduplication des moyens observés / conseillés. La cible (4) représente une situation de maîtrise complète au regard du Code du travail et des recommandations INRS. Cette synthèse complète sans le remplacer le détail risque par risque de la fiche d'entreprise.</p>
+
+<p class="footer">SPSTI 23/87 — Source : Fiche d'entreprise — ${escapeHtml(ent)}</p>
+
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `synthese-fe-${slugify(ent)}.doc`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// ==========================================================
+// DÉMO
+// ==========================================================
+$('demo-btn').addEventListener('click', () => {
+  state = {
+    entreprise: 'Transport sous-traitance livraison',
+    ghe_principal: 'Chauffeurs livreurs',
+    effectif: 10,
+    axes: [
+      { nom: 'Ambiance thermique',    score: 4, justification: 'Clim + boissons + pauses tempérées + vêtements adaptés' },
+      { nom: 'Risque routier',         score: 3, justification: 'Maintenance Bernis, DPAE, DREAL, contrôle permis — manque formation pratique' },
+      { nom: 'Chute de plain-pied',    score: 3, justification: 'Sensibilisation + chaussures sécurité — manque balisage' },
+      { nom: 'Manutention manuelle',   score: 2, justification: 'Aides matérielles OK — PRAP, gants, aménagement véhicules manquants' },
+      { nom: 'Vibrations mécaniques',  score: 2, justification: 'Entretien véhicules OK — siège anti-vibratile manquant' },
+      { nom: 'Coactivité',             score: 2, justification: 'Gérée chez EU — plan circulation propre site absent' },
+      { nom: 'RPS / contact public',   score: 2, justification: 'Organisation OK — alarme + sensibilisation manquantes' },
+      { nom: 'Addictions / sécurité',  score: 1, justification: 'Sensibilisation ponctuelle uniquement — RI, éthylotests, protocole absents' }
+    ],
+    lecture_rapide: {
+      point_fort: "l'ambiance thermique (4/8) est bien maîtrisée — climatisation véhicules, boissons chaudes/fraîches selon saison, pauses tempérées, vêtements adaptés. Le risque routier (3/8) bénéficie d'un cadre matériel et administratif solide (maintenance Bernis, contrôle permis, DPAE, DREAL).",
+      zones_a_renforcer: "quatre axes plafonnent à 2/4 — manutention, vibrations, coactivité, RPS. Les moyens techniques existent mais la formalisation manque : pas de formation PRAP, pas de siège anti-vibratile, pas de plan de circulation propre site, pas de dispositif d'alarme RPS.",
+      point_critique: "le risque addictions / sécurité (1/8) — seule une sensibilisation ponctuelle est en place alors que 100 % des salariés sont conducteurs professionnels. Aucun règlement intérieur volet addictions, aucun éthylotest, aucun protocole « doute sur aptitude ».",
+      message_employeur: "la maîtrise des risques sur sites de chargement dépend fortement des entreprises utilisatrices (transporteurs). Trois chantiers prioritaires propres : (1) créer le DUERP — obligation pénale depuis 2001 ; (2) formaliser le volet addictions du règlement intérieur ; (3) désigner et former un SST pour les salariés en propre."
+    }
+  };
+  syncFormFromState();
+  renderAxes();
+  showScreen('editor');
+  updateAll();
+});
+
+</script>
+</body>
+</html>
